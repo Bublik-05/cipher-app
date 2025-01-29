@@ -1,0 +1,14 @@
+<body>
+    <h1>Profile</h1>
+    <p>Статус: <strong><%= user.admin ? 'Администратор' : 'Обычный пользователь' %></strong></p>
+    <form action="/profile" method="POST">
+        <label for="username">Имя пользователя:</label>
+        <input type="text" id="username" name="username" value="<%= user.username %>" required>
+        <label for="password">Новый пароль:</label>
+        <input type="password" id="password" name="password">
+        <button type="submit">Обновить</button>
+    </form>
+    <form action="/logout" method="POST">
+        <button type="submit">Выйти</button>
+    </form>
+</body>

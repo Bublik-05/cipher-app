@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ToDo List</title>
+</head>
+<body>
+    <h1>ToDo List</h1>
+    <form action="/add-task" method="POST">
+        <input type="text" name="task" placeholder="Новая задача" required>
+        <button type="submit">Добавить</button>
+    </form>
+    <ul>
+        <% tasks.forEach(task => { %>
+            <li>
+                <span><%= task.task %></span>
+                <form action="/delete-task" method="POST" style="display: inline;">
+                    <input type="hidden" name="taskId" value="<%= task._id %>">
+                    <button type="submit">Удалить</button>
+                </form>
+            </li>
+        <% }) %>
+    </ul>
+    <a href="/profile">
+        <button>Профиль</button>
+    </a>
+</body>
+</html>
