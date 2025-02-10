@@ -5,14 +5,20 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const session = require('express-session');
 const cors = require('cors');
+const axios = require('axios');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+app.use(express.static(path.join(__dirname, '../public')));
+console.log("Serving static files from:", path.join(__dirname, 'public'));
+
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
 app.use(
   session({
     secret: process.env.SESSION_SECRET || 'defaultsecret',
@@ -21,8 +27,16 @@ app.use(
   })
 );
 
+app.use((req, res, next) => {
+  console.log(`Запрос: ${req.url}`);
+  next();
+});
+
+
+
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, '../views'));
+
 
 // Подключение к MongoDB
 mongoose.connect('mongodb+srv://pernebekabylaj:vPxecERDKkxNmzFQ@cluster0.ehlo7.mongodb.net/ass3web?retryWrites=true&w=majority&appName=Cluster0')
@@ -148,6 +162,77 @@ async function createAdmin() {
 
 // Запуск создания админа при старте сервера
 createAdmin();
+
+
+// Маршрут для получения данных о погоде
+app.get('/api/weather', async (req, res) => {
+  const { city } = req.query;
+
+  if (!city) {
+      console.log('City not provided in request');
+      return res.status(400).send('City is required');
+  }
+
+  const apiKey = process.env.OPENWEATHER_API_KEY;
+  const url = `https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${apiKey}&units=metric`;
+  console.log('Weather API request URL:', url);
+
+  try {
+      const response = await axios.get(url);
+      console.log('Weather API response:', response.data);
+      res.json(response.data);
+  } catch (error) {
+      console.error('Error fetching weather data:', error.response?.data || error.message);
+      res.status(500).send('Ошибка при получении данных о погоде');
+  }
+});
+
+// Маршрут для получения курсов валют
+app.get('/api/currency', async (req, res) => {
+  const base = req.query.base || 'USD'; // Базовая валюта
+  const apiKey = process.env.EXCHANGE_RATE_API_KEY; // Ключ из .env
+  const url = `https://v6.exchangerate-api.com/v6/${apiKey}/latest/${base}`;
+
+  try {
+      const response = await axios.get(url);
+      res.json(response.data.conversion_rates); // Отправляем только курсы
+  } catch (error) {
+      console.error('Error fetching currency rates:', error.response?.data || error.message);
+      res.status(500).send('Ошибка при получении курсов валют');
+  }
+});
+
+
+// Маршрут для получения новостей
+app.get('/api/news', async (req, res) => {
+  const { country } = req.query; // Страна для фильтрации новостей
+  const apiKey = process.env.NEWS_API_KEY; // Ключ из .env
+  const url = `https://newsapi.org/v2/top-headlines?country=${country}&apiKey=${apiKey}`;
+
+  try {
+      const response = await axios.get(url);
+      res.json(response.data.articles); // Отправляем только статьи
+  } catch (error) {
+      console.error('Error fetching news:', error.response?.data || error.message);
+      res.status(500).send('Ошибка при получении новостей');
+  }
+});
+
+
+// Маршрут для получения прогноза погоды
+app.get('/api/forecast', async (req, res) => {
+  const { lat, lon } = req.query;
+  const apiKey = process.env.OPENWEATHER_API_KEY;
+  const url = `https://api.openweathermap.org/data/2.5/onecall?lat=${lat}&lon=${lon}&exclude=current,minutely,hourly,alerts&appid=${apiKey}&units=metric`;
+
+  try {
+      const response = await axios.get(url);
+      res.json(response.data.daily); // Отправляем только ежедневный прогноз
+  } catch (error) {
+      console.error('Error fetching forecast data:', error.response?.data || error.message);
+      res.status(500).send('Ошибка при получении прогноза погоды');
+  }
+});
 
 
 app.listen(PORT, () => {

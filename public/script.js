@@ -130,7 +130,6 @@ function setupWeatherHandler() {
     });
 }
 
-
 // Map Display
 function displayMap(lat, lon) {
     const map = L.map('map').setView([lat, lon], 13);
@@ -194,11 +193,6 @@ document.getElementById('getCurrencyButton').addEventListener('click', async () 
         alert('Failed to fetch currency rates.');
     }
 });
-
-
-
-
-
 
 // Initialization
 document.addEventListener('DOMContentLoaded', () => {

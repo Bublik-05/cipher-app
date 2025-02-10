@@ -1,97 +1,239 @@
-require('dotenv').config(); // Подключение dotenv до использования process.env
+require('dotenv').config(); // Load environment variables
 const express = require('express');
 const path = require('path');
+const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
+const session = require('express-session');
+const cors = require('cors');
 const axios = require('axios');
-const cors = require('cors'); // Подключение CORS
 
-const app = express(); // Инициализация Express
-const apiKey = process.env.OPENWEATHER_API_KEY;// Считываем ключ OpenWeather API
-console.log('Loaded API Key:', apiKey); // Лог API-ключа
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-app.use(cors()); // Подключение CORS
-app.use(express.json()); // Обработка JSON
+app.use(express.static(path.join(__dirname, 'public')));
+console.log("Serving static files from:", path.join(__dirname, 'public'));
 
 
-// Статические файлы
-app.use(express.static(path.join(__dirname, '../public')));
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Корневой маршрут
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, '../public', 'index.html'));
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || 'defaultsecret',
+    resave: false,
+    saveUninitialized: true,
+  })
+);
+
+app.use((req, res, next) => {
+  console.log(`Запрос: ${req.url}`);
+  next();
 });
+
+
+
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, '../views'));
+
+
+// Подключение к MongoDB
+mongoose.connect('mongodb+srv://pernebekabylaj:vPxecERDKkxNmzFQ@cluster0.ehlo7.mongodb.net/ass3web?retryWrites=true&w=majority&appName=Cluster0')
+    .then(() => console.log('Подключено к MongoDB Atlas'))
+    .catch((error) => {
+        console.error('Ошибка подключения к MongoDB Atlas:', error.message);
+        console.error('Детали:', error);
+    });
+
+// User Schema
+const userSchema = new mongoose.Schema({
+  username: { type: String, unique: true, required: true },
+  password: { type: String, required: true },
+  admin: { type: Boolean, default: false },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date },
+  deletedAt: { type: Date },
+});
+const User = mongoose.model('User', userSchema);
+
+// Routes
+app.get('/', (req, res) => {
+  res.render('login-register', { message: null });
+});
+
+app.post('/register', async (req, res) => {
+  const { username, password } = req.body;
+  try {
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = new User({ username, password: hashedPassword });
+    await newUser.save();
+    res.render('login-register', { message: 'Registration successful! Please log in.' });
+  } catch (error) {
+    res.render('login-register', { message: 'Error: Username already exists.' });
+  }
+});
+
+app.post('/login', async (req, res) => {
+    const { username, password } = req.body;
+    try {
+      const user = await User.findOne({ username });
+      if (!user) {
+        return res.render('login-register', { message: 'User not found.' });
+      }
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      if (!isPasswordValid) {
+        return res.render('login-register', { message: 'Invalid password.' });
+      }
+      req.session.user = user;
+      res.render('index', { user: req.session.user });
+    } catch (error) {
+      res.render('login-register', { message: 'An error occurred during login.' });
+    }
+});
+  
+app.get('/main', (req, res) => {
+  if (!req.session.user) {
+    return res.redirect('/');
+  }
+  res.render('main', { user: req.session.user });
+});
+
+app.get('/profile', (req, res) => {
+  if (!req.session.user) {
+    return res.redirect('/');
+  }
+  res.render('profile', { user: req.session.user });
+});
+
+// Admin Panel Route
+app.get('/admin', async (req, res) => {
+  if (!req.session.user || !req.session.user.admin) {
+    return res.redirect('/');
+  }
+  const users = await User.find();
+  res.render('admin', { users });
+});
+
+app.get('/logout', (req, res) => {
+  req.session.destroy(err => {
+    if (err) {
+      return res.redirect('/profile');
+    }
+    res.redirect('/');
+  });
+});
+
+
+// Delete User Route
+app.post('/admin/delete', async (req, res) => {
+  if (!req.session.user || !req.session.user.admin) {
+    return res.redirect('/');
+  }
+  await User.findByIdAndDelete(req.body.userId);
+  res.redirect('/admin');
+});
+
+// Edit User Route
+app.post('/admin/edit', async (req, res) => {
+  if (!req.session.user || !req.session.user.admin) {
+    return res.redirect('/');
+  }
+  await User.findByIdAndUpdate(req.body.userId, { username: req.body.username, admin: req.body.admin === 'true' });
+  res.redirect('/admin');
+});
+
+
+async function createAdmin() {
+  const existingAdmin = await User.findOne({ username: "admin" });
+  if (!existingAdmin) {
+    const hashedPassword = await bcrypt.hash("admin", 10);
+    const adminUser = new User({
+      username: "admin",
+      password: hashedPassword,
+      admin: true
+    });
+    await adminUser.save();
+    console.log("✅ Администратор создан: admin / admin");
+  } else {
+    console.log("ℹ️ Админ уже существует.");
+  }
+}
+
+// Запуск создания админа при старте сервера
+createAdmin();
+
 
 // Маршрут для получения данных о погоде
 app.get('/api/weather', async (req, res) => {
-    const { city } = req.query;
+  const { city } = req.query;
 
-    if (!city) {
-        console.log('City not provided in request');
-        return res.status(400).send('City is required');
-    }
+  if (!city) {
+      console.log('City not provided in request');
+      return res.status(400).send('City is required');
+  }
 
-    const url = `https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${apiKey}&units=metric`;
-    console.log('Weather API request URL:', url);
+  const url = `https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${apiKey}&units=metric`;
+  console.log('Weather API request URL:', url);
 
-    try {
-        const response = await axios.get(url);
-        console.log('Weather API response:', response.data);
-        res.json(response.data);
-    } catch (error) {
-        console.error('Error fetching weather data:', error.response?.data || error.message);
-        res.status(500).send('Ошибка при получении данных о погоде');
-    }
+  try {
+      const response = await axios.get(url);
+      console.log('Weather API response:', response.data);
+      res.json(response.data);
+  } catch (error) {
+      console.error('Error fetching weather data:', error.response?.data || error.message);
+      res.status(500).send('Ошибка при получении данных о погоде');
+  }
 });
-
-
 
 // Маршрут для получения курсов валют
 app.get('/api/currency', async (req, res) => {
-    const base = req.query.base || 'USD'; // Базовая валюта
-    const apiKey = process.env.EXCHANGE_RATE_API_KEY; // Ключ из .env
-    const url = `https://v6.exchangerate-api.com/v6/${apiKey}/latest/${base}`;
+  const base = req.query.base || 'USD'; // Базовая валюта
+  const apiKey = process.env.EXCHANGE_RATE_API_KEY; // Ключ из .env
+  const url = `https://v6.exchangerate-api.com/v6/${apiKey}/latest/${base}`;
 
-    try {
-        const response = await axios.get(url);
-        res.json(response.data.conversion_rates); // Отправляем только курсы
-    } catch (error) {
-        console.error('Error fetching currency rates:', error.response?.data || error.message);
-        res.status(500).send('Ошибка при получении курсов валют');
-    }
+  try {
+      const response = await axios.get(url);
+      res.json(response.data.conversion_rates); // Отправляем только курсы
+  } catch (error) {
+      console.error('Error fetching currency rates:', error.response?.data || error.message);
+      res.status(500).send('Ошибка при получении курсов валют');
+  }
 });
 
 
 // Маршрут для получения новостей
 app.get('/api/news', async (req, res) => {
-    const { country } = req.query; // Страна для фильтрации новостей
-    const apiKey = process.env.NEWS_API_KEY; // Ключ из .env
-    const url = `https://newsapi.org/v2/top-headlines?country=${country}&apiKey=${apiKey}`;
+  const { country } = req.query; // Страна для фильтрации новостей
+  const apiKey = process.env.NEWS_API_KEY; // Ключ из .env
+  const url = `https://newsapi.org/v2/top-headlines?country=${country}&apiKey=${apiKey}`;
 
-    try {
-        const response = await axios.get(url);
-        res.json(response.data.articles); // Отправляем только статьи
-    } catch (error) {
-        console.error('Error fetching news:', error.response?.data || error.message);
-        res.status(500).send('Ошибка при получении новостей');
-    }
+  try {
+      const response = await axios.get(url);
+      res.json(response.data.articles); // Отправляем только статьи
+  } catch (error) {
+      console.error('Error fetching news:', error.response?.data || error.message);
+      res.status(500).send('Ошибка при получении новостей');
+  }
 });
 
 
 // Маршрут для получения прогноза погоды
 app.get('/api/forecast', async (req, res) => {
-    const { lat, lon } = req.query;
-    const apiKey = process.env.OPENWEATHER_API_KEY;
-    const url = `https://api.openweathermap.org/data/2.5/onecall?lat=${lat}&lon=${lon}&exclude=current,minutely,hourly,alerts&appid=${apiKey}&units=metric`;
+  const { lat, lon } = req.query;
+  const apiKey = process.env.OPENWEATHER_API_KEY;
+  const url = `https://api.openweathermap.org/data/2.5/onecall?lat=${lat}&lon=${lon}&exclude=current,minutely,hourly,alerts&appid=${apiKey}&units=metric`;
 
-    try {
-        const response = await axios.get(url);
-        res.json(response.data.daily); // Отправляем только ежедневный прогноз
-    } catch (error) {
-        console.error('Error fetching forecast data:', error.response?.data || error.message);
-        res.status(500).send('Ошибка при получении прогноза погоды');
-    }
+  try {
+      const response = await axios.get(url);
+      res.json(response.data.daily); // Отправляем только ежедневный прогноз
+  } catch (error) {
+      console.error('Error fetching forecast data:', error.response?.data || error.message);
+      res.status(500).send('Ошибка при получении прогноза погоды');
+  }
 });
 
 
-// Запуск сервера
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+});
