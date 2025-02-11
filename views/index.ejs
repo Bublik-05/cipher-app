@@ -34,9 +34,9 @@
         <a href="/profile">
             <button id="profileButton" class="btn btn-primary">Профиль</button>
         </a>
-        <% if (user && user.admin) { %>
+        <% if (typeof user !== "undefined" && user && user.role === "admin") { %>
             <a href="/admin"><button id="adminButton" class="btn btn-primary">Admin Panel</button></a>
-        <% } %>
+        <% } %>              
         <div class="card shadow-sm">
             <div class="card-body">
                 <div class="mb-3">

@@ -49,30 +49,135 @@ mongoose.connect('mongodb+srv://pernebekabylaj:vPxecERDKkxNmzFQ@cluster0.ehlo7.m
 // User Schema
 const userSchema = new mongoose.Schema({
   username: { type: String, unique: true, required: true },
-  password: { type: String, required: true },
-  admin: { type: Boolean, default: false },
+  email: { type: String, unique: true, required: true },
+  password: { type: String, default: null },  // пароль не обязателен
+  language: { type: String, default: 'en' },
   createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date },
-  deletedAt: { type: Date },
 });
+
+
+
 const User = mongoose.model('User', userSchema);
+
 
 // Routes
 app.get('/', (req, res) => {
   res.render('login-register', { message: null });
 });
 
-app.post('/register', async (req, res) => {
-  const { username, password } = req.body;
+/// API для проверки Email
+const verifyEmail = async (email) => {
   try {
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const newUser = new User({ username, password: hashedPassword });
-    await newUser.save();
-    res.render('login-register', { message: 'Registration successful! Please log in.' });
+    const response = await fetch(`https://api.emailvalidation.io/v1/info?apikey=${process.env.EMAIL_API_KEY}&email=${email}`);
+    if (!response.ok) {
+      throw new Error('Network response was not ok ' + response.statusText);
+    }
+    const data = await response.json();
+    console.log(data);
+    return data.smtp_check || false;
   } catch (error) {
-    res.render('login-register', { message: 'Error: Username already exists.' });
+    console.error('There was a problem with the fetch operation:', error);
+    return false;
+  }
+};
+
+// Регистрация
+app.post('/register', async (req, res) => {
+  const { username, email, password } = req.body;
+  try {
+    const emailValid = await verifyEmail(email);
+    if (!emailValid) {
+      return res.render('login-register', { message: 'Invalid email address' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = new User({ username, email, password: hashedPassword });
+    await newUser.save();
+    req.session.user = newUser; 
+    res.redirect('/index'); 
+  } catch (error) {
+    res.render('login-register', { message: 'Error: Username or email already exists' });
   }
 });
+
+
+const passport = require("passport");
+const GoogleStrategy = require("passport-google-oauth20").Strategy;
+
+// Настройка Passport для Google OAuth
+passport.use(new GoogleStrategy(
+  {
+    clientID: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    callbackURL: "http://localhost:3000/auth/google/callback",
+  },
+  async (accessToken, refreshToken, profile, done) => {
+    try {
+      let user = await User.findOne({ email: profile.emails[0].value });
+      if (!user) {
+        user = new User({
+          username: profile.displayName,
+          email: profile.emails[0].value,
+          password: null,
+        });
+        await user.save();
+      }
+      return done(null, user);
+    } catch (err) {
+      return done(err, null);
+    }
+  }
+));
+
+
+// Сериализация пользователя
+passport.serializeUser((user, done) => done(null, user.id));
+passport.deserializeUser(async (id, done) => {
+  const user = await User.findById(id);
+  done(null, user);
+});
+
+// Маршруты для входа через Google
+app.get('/auth/google', (req, res, next) => {
+  if (req.session.user) {
+    console.log("User session after Google login:", req.session.user);
+    return res.redirect('/main'); 
+  }
+  passport.authenticate('google', { scope: ['profile', 'email'] })(req, res, next);
+});
+
+app.get('/auth/google/callback',
+  passport.authenticate('google', {
+    failureRedirect: '/login-register',
+  }),
+  (req, res) => {
+    req.session.user = req.user; 
+    console.log("User session after Google login:", req.session.user);
+    res.redirect('/main'); 
+  }
+);
+
+// Выход
+app.get("/logout", (req, res) => {
+  req.logout(() => {});
+  req.session.destroy(() => {});
+  res.redirect("/");
+});
+
+
+// Установка языка
+app.get('/set-language/:lang', (req, res) => {
+  const { lang } = req.params;
+  req.session.language = lang;
+  res.redirect('back');
+});
+
+// Middleware для установки языка
+app.use((req, res, next) => {
+  res.locals.language = req.session.language || 'en';
+  next();
+});
+
 
 app.post('/login', async (req, res) => {
     const { username, password } = req.body;
@@ -92,12 +197,10 @@ app.post('/login', async (req, res) => {
     }
 });
   
-app.get('/main', (req, res) => {
-  if (!req.session.user) {
-    return res.redirect('/');
-  }
-  res.render('main', { user: req.session.user });
+app.get("/main", isAuthenticated, (req, res) => {
+  res.render("index", { user: req.session.user });
 });
+
 
 app.get('/profile', (req, res) => {
   if (!req.session.user) {
@@ -160,8 +263,38 @@ async function createAdmin() {
   }
 }
 
+// Middleware: Проверяет, залогинен ли пользователь
+function isAuthenticated(req, res, next) {
+  if (req.session.user) {
+    return next();
+  }
+  return res.redirect('/'); // Если не залогинен, отправляем на страницу входа
+}
+
+// Middleware: Проверяет, является ли пользователь админом
+function isAdmin(req, res, next) {
+  if (req.session.user && req.session.user.role === 'admin') {
+    return next();
+  }
+  return res.status(403).send('Access denied. Only admins can access this page.');
+}
+
+
 // Запуск создания админа при старте сервера
 createAdmin();
+
+const EncryptedText = require(path.join(__dirname, '../models/EncryptedText'));
+app.get('/texts', async (req, res) => {
+  const texts = await EncryptedText.find();
+  console.log(texts); // Проверяем, что данные реально сохраняются
+  res.json(texts);
+});
+app.post('/admin/add-text', async (req, res) => {
+  console.log("Получен запрос:", req.body); // Проверяем, что сервер получает данные
+  // ... остальной код
+});
+
+
 
 
 // Маршрут для получения данных о погоде

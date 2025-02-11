@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login & Registration</title>
+    <title>SECRET</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -52,8 +52,12 @@
     <form action="/register" method="POST">
         <h2>Регистрация</h2>
         <input type="text" name="username" placeholder="Имя пользователя" required>
+        <input type="email" name="email" placeholder="Электронная почта" required>
         <input type="password" name="password" placeholder="Пароль" required>
         <button type="submit">Зарегистрироваться</button>
+    </form>
+    <form>
+        <a href="/auth/google" class="btn btn-primary">Войти через Google</a>
     </form>
 
     <form action="/login" method="POST">
