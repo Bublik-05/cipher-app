@@ -29,6 +29,30 @@
     </style>
 </head>
 <body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/main">CipherApp</a>
+            <div class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item"><a class="nav-link" href="/main">Main</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/admin">Admin Panel</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/profile">Profile</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <% if (typeof backgrounds !== 'undefined' && backgrounds.length > 0) { %>
+        <style>
+            body {
+                background: url('<%= backgrounds[backgrounds.length - 1].imageUrl %>') no-repeat center center fixed;
+                background-size: cover;
+            }
+        </style>
+    <% } %>
+    
+    
+    
     <div class="container">
         <h1 class="text-center mb-4">Text Cipher Tool</h1>
         <a href="/profile">
@@ -68,6 +92,22 @@
                 <button id="copyButton" class="btn btn-success mt-3">Copy Output</button>
             </div>
         </div>
+
+
+        <% if (typeof ads !== 'undefined' && ads.length > 0) { %>
+            <h3>Реклама:</h3>
+            <% ads.forEach(ad => { %>
+                <div>
+                    <img src="<%= ad.imageUrl %>" alt="Реклама" width="150">
+                    <p><%= ad.text %></p>
+                    <a href="<%= ad.link %>" target="_blank">Перейти</a>
+                </div>
+            <% }) %>
+        <% } else { %>
+            <p>Рекламы пока нет.</p>
+        <% } %>
+        
+
 
         <!-- Weather Section -->
         <div class="card shadow-sm mt-4">

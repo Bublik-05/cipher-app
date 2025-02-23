@@ -4,46 +4,117 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Panel</title>
-    <style>
-        body { font-family: Arial, sans-serif; text-align: center; }
-        table { width: 80%; margin: auto; border-collapse: collapse; }
-        th, td { padding: 10px; border: 1px solid black; }
-        th { background: #007BFF; color: white; }
-        form { display: inline; }
-    </style>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
-<body>
-    <h1>Admin Panel</h1>
-    <table>
-        <tr>
-            <th>Username</th>
-            <th>Admin</th>
-            <th>Actions</th>
-        </tr>
+<body class="bg-light">
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="/main">CipherApp</a>
+        <div class="collapse navbar-collapse">
+            <ul class="navbar-nav me-auto">
+                <li class="nav-item"><a class="nav-link" href="/main">Main</a></li>
+                <li class="nav-item"><a class="nav-link" href="/admin">Admin Panel</a></li>
+                <li class="nav-item"><a class="nav-link" href="/profile">Profile</a></li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<div class="container">
+    <h1 class="text-center mb-4">Admin Panel</h1>
+
+    <!-- Пользователи -->
+    <table class="table table-bordered table-striped">
+        <thead class="table-primary">
+            <tr>
+                <th>Username</th>
+                <th>Admin</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
         <% users.forEach(user => { %>
             <tr>
                 <td><%= user.username %></td>
                 <td><%= user.admin ? 'Yes' : 'No' %></td>
                 <td>
-                    <form action="/admin/edit" method="POST" style="display: inline;">
+                    <form action="/admin/edit" method="POST" class="d-inline">
                         <input type="hidden" name="userId" value="<%= user._id %>">
-                        <input type="text" name="username" value="<%= user.username %>">
-                        <select name="admin">
+                        <input type="text" name="username" value="<%= user.username %>" class="form-control d-inline w-auto">
+                        <select name="admin" class="form-select d-inline w-auto">
                             <option value="true" <%= user.admin ? "selected" : "" %>>Admin</option>
                             <option value="false" <%= !user.admin ? "selected" : "" %>>User</option>
                         </select>
-                        <button type="submit">Edit</button>
+                        <button type="submit" class="btn btn-warning btn-sm">Edit</button>
                     </form>
-                    <form action="/admin/delete" method="POST" style="display: inline;">
+                    <form action="/admin/delete" method="POST" class="d-inline">
                         <input type="hidden" name="userId" value="<%= user._id %>">
-                        <button type="submit">Delete</button>
+                        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
                     </form>
                 </td>
             </tr>
         <% }) %>
+        </tbody>
     </table>
 
-    
-    <a href="/profile">Back to Menu</a>
+    <!-- Добавить фон -->
+    <h3 class="mt-4">Добавить фон:</h3>
+    <form action="/admin/add-background" method="POST" enctype="multipart/form-data" class="mb-4">
+        <input type="file" name="backgroundImage" required class="form-control mb-2">
+        <input type="text" name="description" placeholder="Описание фона" class="form-control mb-2">
+        <button type="submit" class="btn btn-primary">Загрузить</button>
+    </form>
+
+    <!-- Фоны -->
+    <h3>Фоны:</h3>
+    <% if (typeof backgrounds !== 'undefined' && backgrounds.length > 0) { %>
+        <% backgrounds.forEach(bg => { %>
+            <div class="mb-3">
+                <img src="<%= bg.imageUrl %>" alt="Фон" width="150">
+                <p><%= bg.description %></p>
+                <form action="/admin/delete-background/<%= bg._id %>" method="POST">
+                    <button type="submit" class="btn btn-danger">Удалить</button>
+                </form>
+            </div>
+        <% }) %>
+    <% } else { %>
+        <p>Фонов пока нет.</p>
+    <% } %>
+
+    <!-- Добавить рекламный блок -->
+    <h3 class="mt-4">Добавить рекламный блок:</h3>
+    <form action="/admin/add-adblock" method="POST" enctype="multipart/form-data" class="mb-4">
+        <input type="file" name="adImage" required class="form-control mb-2">
+        <input type="text" name="text" placeholder="Текст рекламы" class="form-control mb-2">
+        <input type="url" name="link" placeholder="Ссылка" class="form-control mb-2">
+        <button type="submit" class="btn btn-primary">Добавить</button>
+    </form>
+
+    <!-- Рекламные блоки -->
+    <h3>Рекламные блоки:</h3>
+    <% if (typeof ads !== 'undefined' && ads.length > 0) { %>
+        <% ads.forEach(ad => { %>
+            <div class="mb-3">
+                <img src="<%= ad.imageUrl %>" alt="Реклама" width="150">
+                <p><%= ad.text %></p>
+                <a href="<%= ad.link %>" target="_blank"><%= ad.link %></a>
+                <form action="/admin/delete-adblock/<%= ad._id %>" method="POST">
+                    <button type="submit" class="btn btn-danger">Удалить</button>
+                </form>
+            </div>
+        <% }) %>
+    <% } else { %>
+        <p>Рекламных блоков пока нет.</p>
+    <% } %>
+
+    <a href="/profile" class="btn btn-secondary mt-4">Back to Menu</a>
+</div>
+
+<footer class="bg-dark text-white text-center py-3 mt-4">
+    <p>Инкара, группа XYZ123</p>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

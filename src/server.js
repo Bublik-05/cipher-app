@@ -7,6 +7,7 @@ const session = require('express-session');
 const cors = require('cors');
 const axios = require('axios');
 
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -51,6 +52,7 @@ const userSchema = new mongoose.Schema({
   username: { type: String, unique: true, required: true },
   email: { type: String, unique: true, required: true },
   password: { type: String, default: null },  // пароль не обязателен
+  admin: { type: Boolean, default: false },
   language: { type: String, default: 'en' },
   createdAt: { type: Date, default: Date.now },
 });
@@ -94,7 +96,7 @@ app.post('/register', async (req, res) => {
     const newUser = new User({ username, email, password: hashedPassword });
     await newUser.save();
     req.session.user = newUser; 
-    res.redirect('/index'); 
+    res.redirect('/main'); 
   } catch (error) {
     res.render('login-register', { message: 'Error: Username or email already exists' });
   }
@@ -191,15 +193,25 @@ app.post('/login', async (req, res) => {
         return res.render('login-register', { message: 'Invalid password.' });
       }
       req.session.user = user;
-      res.render('index', { user: req.session.user });
+      const backgrounds = await Background.find();
+      const ads = await AdBlock.find();
+      res.render('index', { user: req.session.user, backgrounds, ads });
     } catch (error) {
       res.render('login-register', { message: 'An error occurred during login.' });
     }
 });
   
-app.get("/main", isAuthenticated, (req, res) => {
-  res.render("index", { user: req.session.user });
+app.get("/main", isAuthenticated, async (req, res) => {
+  try {
+    const backgrounds = await Background.find();
+    const ads = await AdBlock.find();
+    res.render("index", { user: req.session.user, backgrounds, ads });
+  } catch (error) {
+    console.error("Ошибка загрузки данных:", error);
+    res.status(500).send("Ошибка загрузки данных");
+  }
 });
+
 
 
 app.get('/profile', (req, res) => {
@@ -215,6 +227,8 @@ app.get('/admin', async (req, res) => {
     return res.redirect('/');
   }
   const users = await User.find();
+  const backgrounds = await Background.find();
+  const ads = await AdBlock.find();
   res.render('admin', { users });
 });
 
@@ -366,6 +380,58 @@ app.get('/api/forecast', async (req, res) => {
       res.status(500).send('Ошибка при получении прогноза погоды');
   }
 });
+
+const multer = require('multer');
+const upload = multer({ dest: 'public/uploads/' }); // Папка для загрузок
+
+app.post('/admin/add-background', upload.single('backgroundImage'), async (req, res) => {
+  const { description } = req.body;
+  const imageUrl = `/uploads/${req.file.filename}`;
+
+  const background = new Background({ imageUrl, description });
+  await background.save();
+
+  res.redirect('/admin');
+});
+
+app.post('/admin/delete-background/:id', async (req, res) => {
+  await Background.findByIdAndDelete(req.params.id);
+  res.redirect('/admin');
+});
+
+app.post('/admin/add-adblock', upload.single('adImage'), async (req, res) => {
+  const { text, link } = req.body;
+  const imageUrl = `/uploads/${req.file.filename}`;
+
+  const adBlock = new AdBlock({ imageUrl, text, link });
+  await adBlock.save();
+
+  res.redirect('/admin');
+});
+
+app.post('/admin/delete-adblock/:id', async (req, res) => {
+  await AdBlock.findByIdAndDelete(req.params.id);
+  res.redirect('/admin');
+});
+
+
+
+const backgroundSchema = new mongoose.Schema({
+  imageUrl: String,
+  description: String,
+  createdAt: { type: Date, default: Date.now },
+});
+const Background = mongoose.model('Background', backgroundSchema);
+
+const adBlockSchema = new mongoose.Schema({
+  imageUrl: String,
+  text: String,
+  link: String,
+  createdAt: { type: Date, default: Date.now },
+});
+const AdBlock = mongoose.model('AdBlock', adBlockSchema);
+
+
 
 
 app.listen(PORT, () => {
