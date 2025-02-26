@@ -104,9 +104,10 @@ app.post('/register', async (req, res) => {
 
 
 const passport = require("passport");
-const GoogleStrategy = require("passport-google-oauth20").Strategy;
-
+//const GoogleStrategy = require("passport-google-oauth20").Strategy;
 // Настройка Passport для Google OAuth
+
+/*
 passport.use(new GoogleStrategy(
   {
     clientID: process.env.GOOGLE_CLIENT_ID,
@@ -130,7 +131,7 @@ passport.use(new GoogleStrategy(
     }
   }
 ));
-
+*/
 
 // Сериализация пользователя
 passport.serializeUser((user, done) => done(null, user.id));
@@ -139,6 +140,7 @@ passport.deserializeUser(async (id, done) => {
   done(null, user);
 });
 
+/*
 // Маршруты для входа через Google
 app.get('/auth/google', (req, res, next) => {
   if (req.session.user) {
@@ -158,6 +160,7 @@ app.get('/auth/google/callback',
     res.redirect('/main'); 
   }
 );
+*/
 
 // Выход
 app.get("/logout", (req, res) => {
